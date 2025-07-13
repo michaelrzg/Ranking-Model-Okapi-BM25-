@@ -1,13 +1,8 @@
 import os
-import configparser
 import code
 from collections import defaultdict, Counter
 import pickle
 import math
-import operator
-
-from tqdm import tqdm
-from nltk import pos_tag
 from nltk.stem import WordNetLemmatizer
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
@@ -159,7 +154,7 @@ class SearchAgent:
             if bm25 > 0:
                 scores.append((docID,bm25))
         scores.sort(key=lambda x: x[1], reverse=True)
-        self.display_results(scores)
+        self.display_results(scores[:5])
         return scores
 
 
