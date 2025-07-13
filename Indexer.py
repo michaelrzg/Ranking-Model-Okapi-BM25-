@@ -30,12 +30,21 @@ class Indexer:
         # load config data
         self.data_directory = cfg['data_dir']
         self.index_file = cfg["idx_file"]
-        # load data from data file
-        self.load_corups(self.data_directory)
-        # generate the inverted index from data
-        self.generate_inverted_index()
-        # save 
-        self.save_inv_index()
+        if self.index_file in os.listdir():
+            try: 
+                with open(self.index_file,"rb") as file:
+                    self.inverted_index = pickle.load(file)
+                print("index loaded")
+            except Exception as e:
+                print(e)
+        else:
+            print("index file not found, generating inv index")
+            # load data from data file
+            self.load_corups(self.data_directory)
+            # generate the inverted index from data
+            self.generate_inverted_index()
+            # save 
+            self.save_inv_index()
     
     def load_corups(self,dir):
         current_id = 0
@@ -108,10 +117,19 @@ class Indexer:
 
 class SearchAgent:
     def __init__(self, indexer, cfg):
-        raise NotImplementedError("Delete this lien and write your code here.")
+        self.indexer = indexer
+        self.k1 = cfg['k1']
+        self.b = cfg['b']
+        self.N = len(indexer.book)
 
     def query(self, q_str):
-        raise NotImplementedError("Delete this lien and write your code here.")
+        query = self.indexer.text_preprocessing(q_str) # preprocess query text
+        for docID,text in self.indexer.book:
+            pass
+
+
+    def calculate_bm25(self):
+        pass
 
     def display_results(self, results):
         raise NotImplementedError("Delete this lien and write your code here.")
@@ -126,5 +144,5 @@ CFG = {
 
 if __name__ == "__main__":
     i = Indexer(CFG)
-    #q = SearchAgent(i, CFG)
+    q = SearchAgent(i, CFG)
     code.interact(local=dict(globals(), **locals()))
