@@ -24,12 +24,14 @@ class Indexer:
         # setup
         self.stop_words = set(stopwords.words('english'))
         self.lemmatizer = WordNetLemmatizer()
-        self.book = {}
+        self.dataset = {}
         self.tok2idx = defaultdict(lambda: len(self.tok2idx))
         self.idx2tok = dict()
         # load config data
         self.data_directory = cfg['data_dir']
         self.index_file = cfg["idx_file"]
+        # load data from data file (so avglen can be generated)
+        self.load_corups(self.data_directory)
         if self.index_file in os.listdir():
             try: 
                 with open(self.index_file,"rb") as file:
@@ -39,8 +41,6 @@ class Indexer:
                 print(e)
         else:
             print("index file not found, generating inv index")
-            # load data from data file
-            self.load_corups(self.data_directory)
             # generate the inverted index from data
             self.generate_inverted_index()
             # save 
@@ -48,17 +48,21 @@ class Indexer:
     
     def load_corups(self,dir):
         current_id = 0
+        total_length = 0
         try:     
             files = os.listdir(dir) # open data file
+            N = len(files)
             for file in files:
                 path = os.path.join(dir,file) # get path to each file
                 with open(path) as current:
                     full_text = current.read()
                     full_text = self.get_text(full_text)# get data undrer TExt: header
                     page = self.text_preprocessing(full_text)
-                    self.book[current_id] = page
+                    total_length+=len(page)
+                    self.dataset[current_id] = page
                     current_id+=1
                     self.add_to_vocabulary(page)
+            self.avglen = total_length/N
                     
 
         except Exception as e:
@@ -66,17 +70,16 @@ class Indexer:
         print(len(self.tok2idx))
 
     def get_text(self,full_file):
-        start_index = full_file.find("Text:") # find the Text header
-        stop_index = full_file.find("Next:")
+        start_index = full_file.find("Text: ") # find the Text header
         if start_index != -1:
             text_content_start = start_index + len("Text: ") 
-            extracted_text = full_file[text_content_start:stop_index].strip() # grab the rest of the file after the header
+            extracted_text = full_file[text_content_start:].strip() # grab the rest of the file after the header
             return extracted_text
 
     def text_preprocessing(self, text):
         text = text.lower() # lowercase
         tokens = word_tokenize(text) #tokenize
-        cleaned_tokens = [re.sub(r'[^a-z\s]', '', token) for token in tokens] # remove all non letters
+        cleaned_tokens = [re.sub(r'[^a-z0-9]', '', token) for token in tokens]
         cleaned_tokens = [token for token in cleaned_tokens if token and len(token)>1] # removes empty strings created by prev line
         filtered_tokens = [word for word in cleaned_tokens if word not in self.stop_words] # remove stopwords  
         lemmatized_tokens = [self.lemmatizer.lemmatize(word) for word in filtered_tokens] # finally lemmetization 
@@ -91,7 +94,7 @@ class Indexer:
     def generate_inverted_index(self):
         self.inverted_index = {}
 
-        for doc_id, text_content in self.book.items():
+        for doc_id, text_content in self.dataset.items():
             doc_word_counts = {} # for word frequencies in the curr page
             for word in text_content:
                 doc_word_counts[word] = doc_word_counts.get(word, 0) + 1
@@ -113,30 +116,54 @@ class Indexer:
         with open(self.index_file,"wb") as file:
             pickle.dump(self.inverted_index,file)
 
-
-
 class SearchAgent:
     def __init__(self, indexer, cfg):
         self.indexer = indexer
         self.k1 = cfg['k1']
         self.b = cfg['b']
-        self.N = len(indexer.book)
+        self.N = len(indexer.dataset)
+        self.inv = indexer.inverted_index
 
     def query(self, q_str):
         query = self.indexer.text_preprocessing(q_str) # preprocess query text
-        for docID,text in self.indexer.book:
-            pass
+        scores = []
+        for docID,text in self.indexer.dataset.items():
+            bm25 = 0
+            d = len(text)
+            print(query)
+            for t in query:
+                if t not in self.inv:
+                    continue 
+                document_freq = len(self.inv[t])
+                term_freq_in_doc = 0
+                for existing_doc_id, freq_in_doc in self.inv[t]:
+                    if existing_doc_id == docID:
+                        term_freq_in_doc = freq_in_doc 
+                        break
+                term_freq = term_freq_in_doc
+
+                if document_freq == 0: 
+                    firsthalf = 0
+                else:
+                    firsthalf =( self.N - document_freq + 0.5)/(document_freq+0.5)
+                    firsthalf = math.log(firsthalf,2)
+
+                second_half = (term_freq * (self.k1 +1))/ (term_freq+self.k1 * (1 - self.b + (self.b * (d/self.indexer.avglen))))
+
+                bm25 += firsthalf * second_half
+            scores.append((docID,bm25))
+        scores.sort(key=lambda x: x[1], reverse=True)
+        return scores[:5]
 
 
     def calculate_bm25(self):
         pass
 
     def display_results(self, results):
-        raise NotImplementedError("Delete this lien and write your code here.")
-
+        pass
 
 CFG = {
-    'idx_file': 'irbook.idx',
+    'idx_file': 'irdataset.idx',
     'data_dir': './data',
     'k1': 1.2,
     'b': 0.75,
