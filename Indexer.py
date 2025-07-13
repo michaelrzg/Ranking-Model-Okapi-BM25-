@@ -1,3 +1,7 @@
+# Michael Rizig
+# PA2 Search Engine
+# 7/12/25
+
 import os
 import code
 from collections import defaultdict, Counter
@@ -44,7 +48,11 @@ class Indexer:
             # save 
             self.save()
         self.avglen = self.lookup_table['avglen']
+    
     def load_corups(self,dir):
+        """
+        Goes through each file in directory and parses file, filling the self.dataset and self.lookup_table
+        """
         current_id = 0
         total_length = 0
         try:     
@@ -68,16 +76,26 @@ class Indexer:
 
 
     def get_text(self,full_file):
+        """
+        Returns all text below the "Text: " header in the passed txt file
+        """
         start_index = full_file.find("Text: ") # find the Text header
         if start_index != -1:
             text_content_start = start_index + len("Text: ") 
             extracted_text = full_file[text_content_start:].strip() # grab the rest of the file after the header
             return extracted_text
+    
     def get_url(self,full_file):
+        """
+        Reutrns the url for a passed in text file
+        """
         line = full_file.splitlines()[0].split(": ")[1]
         return line
     
     def text_preprocessing(self, text):
+        """
+        Preprocesses a body of text by tokenizing and cleaning tokens, then lemmetization
+        """
         text = text.lower() # lowercase
         tokens = word_tokenize(text) #tokenize
         cleaned_tokens = [re.sub(r'[^a-z0-9]', '', token) for token in tokens]
@@ -87,12 +105,19 @@ class Indexer:
         return lemmatized_tokens
 
     def add_to_vocabulary(self,tokens): # from assignment page
+        """
+        adds tokens to token2index and index2token dicts
+        """
         for token in tokens:
             if token not in self.tok2idx:
                 # Assign a new index to the token
                 self.idx2tok[self.tok2idx[token]] = token
     
     def generate_inverted_index(self):
+        """
+        Generates the inverted index for the dataset by going through each document 
+        and generating its scores for all query tokens
+        """
         self.inverted_index = {}
 
         for doc_id, text_content in self.dataset.items():
@@ -114,6 +139,9 @@ class Indexer:
                         self.inverted_index[word].append((doc_id, freq)) # else add it as a new document frequency paor
 
     def save(self):
+        """
+        Saves the inverted index via pickle
+        """
         with open(self.index_file,"wb") as file:
             pickle.dump(self.inverted_index,file)
 
@@ -126,6 +154,10 @@ class SearchAgent:
         self.inv = indexer.inverted_index
 
     def query(self, q_str):
+        """
+        Takes in a query string, tokenizes, then calcualtes BM25 scores,
+        returns a sorted list of most relavent documents based on bm25
+        """
         query = self.indexer.text_preprocessing(q_str) # preprocess query text
         scores = []
         for docID,text in self.indexer.dataset.items():
@@ -159,6 +191,9 @@ class SearchAgent:
 
 
     def display_results(self, scores):
+        """
+        takes in a set of scores and presents them to the user
+        """
         for index,x in enumerate(scores):
             data = self.indexer.lookup_table[x[0]]
             print("Rank: ", index+1)
